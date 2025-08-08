@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Калькулятор артефактов</title>
+  <style>
+    /* ======= Dark theme palette ======= */
+    :root{
+      --bg:#121212;
+      --bg-elevated:#1e1e1e;
+      --bg-hover:#222;
+      --primary:#3b82f6;
+      --primary-hover:#60a5fa;
+      --primary-active:#1d4ed8;
+      --success:#22c55e;
+      --danger:#f87171;
+      --text:#e4e4e4;
+      --border:#444;
+    }
+
+    /* Global */
+    html,body{margin:0;padding:0;}
+    body{font-family:Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text); padding:20px;}
+    h1{font-size:24px; margin-bottom:10px; color:var(--text);}
+
+    /* Search */
+    #search-container{display:flex; gap:8px; margin-bottom:12px;}
+    #search-input{flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px; background:var(--bg-elevated); color:var(--text);}    
+    #search-btn{padding:8px 16px; border:none; border-radius:6px; background:var(--success); color:#fff; cursor:pointer; font-weight:bold; transition:background .2s ease;}
+    #search-btn:hover{background:#16a34a;}
+
+    /* Tier buttons */
+    #tier-buttons{margin-bottom:15px;}
+    .tier-btn{padding:8px 16px; margin:4px; border:none; border-radius:6px; cursor:pointer; background:var(--primary); color:#fff; font-weight:bold; transition:background .2s ease;}
+    .tier-btn:hover{background:var(--primary-hover);}    
+    .tier-btn.active{background:var(--primary-active);}    
+
+    /* Tier table */
+    #tier-table{border-collapse:collapse; width:100%; margin-top:10px;}
+    #tier-table th, #tier-table td{border:1px solid var(--border); padding:6px 8px; text-align:left;}
+    #tier-table th{background:var(--bg-elevated); text-align:center;}
+    #tier-table tr:hover{background:var(--bg-hover); cursor:pointer;}
+
+    /* Generic tables (selected & totals) */
+    table{border-collapse:collapse; margin-top:20px; width:100%;}
+    th, td{border:1px solid var(--border); padding:6px 8px; text-align:center;}
+    th{background:var(--bg-elevated);}    
+    .artifact-row:hover{background:var(--bg-hover);}    
+    .remove-btn{cursor:pointer; color:var(--danger);}    
+    input.qty{width:60px; text-align:center; background:var(--bg-elevated); color:var(--text); border:1px solid var(--border); border-radius:4px;}
+
+    /* Value colors */
+    .char-good{color:var(--success); font-weight:bold;}
+    .char-bad{color:var(--danger); font-weight:bold;}
+    .good{color:var(--success); font-weight:bold;}
+    .bad{color:var(--danger); font-weight:bold;}
+  </style>
+</head>
+<body>
+  <h1>Калькулятор артефактов</h1>
+
+  <!-- Поиск артефакта -->
+  <div id="search-container">
+    <input type="text" id="search-input" placeholder="Введите название артефакта" />
+    <button id="search-btn">Добавить</button>
+  </div>
+
+  <!-- Кнопки выбора Tier -->
+  <div id="tier-buttons"></div>
+
+  <!-- Таблица артефактов выбранного Tier -->
+  <table id="tier-table">
+    <thead>
+      <tr><th>Артефакт</th><th>Характеристики</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Таблица выбранных артефактов -->
+  <table id="selected-table">
+    <thead><tr><th>Артефакт</th><th>Кол-во</th><th>Действие</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Итоговые значения -->
+  <table id="totals-table">
+    <thead><tr><th>Показатель</th><th>Сумма</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+/*********************** Данные (добавьте свои артефакты) ***********************/
+const artifacts=[
+	{"name":"Луна","tier":1,"health":0,"food":-10,"water":-10,"shock":3,"blood":-10,"bloodChance":"0%","stamina":"0%","radiation":3},
+	{"name":"Вспышка","tier":1,"health":1,"food":0,"water":0,"shock":0,"blood":-30,"bloodChance":"0%","stamina":"0.02%","radiation":2},
+	{"name":"Темный ангел","tier":1,"health":-1.5,"food":-10,"water":10,"shock":0,"blood":25,"bloodChance":"0.30%","stamina":"0%","radiation":0},
+	{"name":"Батарейка","tier":1,"health":0,"food":-15,"water":-15,"shock":0,"blood":0,"bloodChance":"0%","stamina":"-0.05%","radiation":4},
+	{"name":"Кристал","tier":1,"health":0,"food":-2,"water":-2,"shock":0,"blood":0,"bloodChance":"-0.20%","stamina":"0%","radiation":2},
+	{"name":"Плазма","tier":1,"health":0,"food":-25,"water":-25,"shock":0,"blood":30,"bloodChance":"0%","stamina":"-0.15%","radiation":-5},
+	{"name":"Пустышка","tier":1,"health":0,"food":0,"water":0,"shock":0,"blood":20,"bloodChance":"0%","stamina":"0%","radiation":-2},
+	{"name":"Пружина","tier":1,"health":2,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-1%","stamina":"0%","radiation":-1},
+	{"name":"Мамины бусы","tier":1,"health":0,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-0.30%","stamina":"0%","radiation":1},
+	{"name":"Капля","tier":1,"health":-0.2,"food":-1,"water":-1,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":3},
+	{"name":"Гравий","tier":1,"health":0,"food":10,"water":10,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":-2},
+	{"name":"Медуза","tier":1,"health":0,"food":5,"water":5,"shock":0,"blood":0,"bloodChance":"0.10%","stamina":"0%","radiation":5},
+	{"name":"Морской еж","tier":1,"health":0.35,"food":-3,"water":-3,"shock":0,"blood":-10,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Колобок","tier":1,"health":0.75,"food":-10,"water":-10,"shock":0,"blood":-20,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Каменный цветок","tier":1,"health":-0.5,"food":-2,"water":-1,"shock":-20,"blood":2,"bloodChance":"-0.10%","stamina":"0%","radiation":1},
+	{"name":"Светляк","tier":1,"health":0,"food":25,"water":-25,"shock":0.5,"blood":40,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Огненный шар","tier":2,"health":-1,"food":-25,"water":-25,"shock":0,"blood":80,"bloodChance":"0.80%","stamina":"0%","radiation":2},
+	{"name":"Ангел","tier":2,"health":0.75,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-0.60%","stamina":"0%","radiation":1},
+	{"name":"Глаз","tier":2,"health":-1,"food":-25,"water":-25,"shock":-5,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Пламя","tier":2,"health":0,"food":-20,"water":-20,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Кровь камня КРАСНОЕ","tier":2,"health":0,"food":0,"water":0,"shock":0,"blood":5,"bloodChance":"0.20%","stamina":"0%","radiation":1},
+	{"name":"Выверт","tier":2,"health":0,"food":25,"water":25,"shock":0,"blood":0,"bloodChance":"-0.25%","stamina":"0%","radiation":-1},
+	{"name":"Демонический глаз","tier":2,"health":-1.5,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"0.50%","stamina":"0%","radiation":3},
+	{"name":"Бенгальский огонь","tier":2,"health":-1,"food":0,"water":0,"shock":3,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Снежинка","tier":2,"health":1,"food":-10,"water":-10,"shock":0,"blood":-30,"bloodChance":"-0.20%","stamina":"0.10%","radiation":2},
+	{"name":"Лунный свет","tier":2,"health":0,"food":30,"water":30,"shock":-2,"blood":-25,"bloodChance":"0%","stamina":"0%","radiation":1},
+	{"name":"Пузырь","tier":2,"health":0.5,"food":-25,"water":25,"shock":0,"blood":10,"bloodChance":"-0.10%","stamina":"0%","radiation":-1},
+	{"name":"Клякса","tier":2,"health":-0.5,"food":25,"water":25,"shock":0,"blood":0,"bloodChance":"-0.10%","stamina":"0%","radiation":1},
+	{"name":"Микроб","tier":2,"health":1.5,"food":-25,"water":-25,"shock":-2,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":2},
+	{"name":"Ломоть мяса","tier":2,"health":1.5,"food":-25,"water":-25,"shock":0,"blood":-10,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Рыбка","tier":3,"health":1.5,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"0%","stamina":"-0.10%","radiation":0},
+	{"name":"Мозг","tier":3,"health":-1.5,"food":0,"water":0,"shock":6,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Колючка","tier":3,"health":0,"food":0,"water":0,"shock":0,"blood":45,"bloodChance":"-0.45%","stamina":"0%","radiation":0},
+	{"name":"Душа","tier":3,"health":0,"food":5,"water":5,"shock":4,"blood":25,"bloodChance":"-0.20%","stamina":"0%","radiation":0},
+	{"name":"Кристальная колючка","tier":3,"health":0,"food":0,"water":0,"shock":0,"blood":-15,"bloodChance":"0.25%","stamina":"0%","radiation":0},
+	{"name":"Моховик","tier":3,"health":0,"food":-3,"water":-3,"shock":0,"blood":-10,"bloodChance":"0.20%","stamina":"0.03%","radiation":0},
+	{"name":"Монолит","tier":4,"health":1,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":-50},
+	{"name":"Темная душа","tier":4,"health":-0.75,"food":0,"water":0,"shock":0,"blood":-15,"bloodChance":"0%","stamina":"0.05%","radiation":0},
+	{"name":"Демоническое сердце","tier":4,"health":0.75,"food":10,"water":10,"shock":0,"blood":0,"bloodChance":"-0.35%","stamina":"0%","radiation":0},
+	{"name":"Сияние леса","tier":4,"health":0,"food":-10,"water":-10,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0.05%","radiation":0},
+	{"name":"Аномальное растение","tier":4,"health":0,"food":20,"water":20,"shock":0,"blood":40,"bloodChance":"0.40%","stamina":"0%","radiation":0},
+	{"name":"Кровь камня ЖЕЛТОЕ","tier":4,"health":0,"food":0,"water":0,"shock":0,"blood":45,"bloodChance":"0.60%","stamina":"0%","radiation":0},
+	{"name":"Видоизмененный изолятор","tier":4,"health":0,"food":0,"water":0,"shock":12,"blood":-10,"bloodChance":"-0.05%","stamina":"0%","radiation":0},
+	{"name":"Сердце оазиса","tier":4,"health":3,"food":15,"water":15,"shock":5,"blood":40,"bloodChance":"0.30%","stamina":"0.02%","radiation":-10},
+	{"name":"Компас","tier":4,"health":3,"food":-20,"water":-20,"shock":-9,"blood":40,"bloodChance":"0.50%","stamina":"0%","radiation":-10},
+	{"name":"Ночная звезда","tier":4,"health":0,"food":30,"water":30,"shock":0,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Огонь","tier":4,"health":-1,"food":0,"water":0,"shock":0,"blood":30,"bloodChance":"0.30%","stamina":"0%","radiation":0},
+	{"name":"Нано клетка","tier":4,"health":2,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-0.20%","stamina":"0%","radiation":0},
+	{"name":"Каменный цветок 2 грейд","tier":"Грейдовые","health":2,"food":0,"water":0,"shock":-4,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":2},
+	{"name":"Каменный цветок 3 грейд","tier":"Грейдовые","health":2,"food":0,"water":0,"shock":-8,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Глаз 2 грейд","tier":"Грейдовые","health":0,"food":30,"water":30,"shock":0,"blood":-40,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Глаз 3 грейд","tier":"Грейдовые","health":0,"food":60,"water":60,"shock":0,"blood":-60,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Мамины бусы 3 грейд","tier":"Грейдовые","health":0,"food":-25,"water":-25,"shock":5,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Мамины бусы 2 грейд","tier":"Грейдовые","health":0,"food":-50,"water":-50,"shock":10,"blood":0,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Капля 2 грейд","tier":"Грейдовые","health":-0.5,"food":0,"water":0,"shock":0,"blood":60,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Капля 3 грейд","tier":"Грейдовые","health":-1,"food":0,"water":0,"shock":0,"blood":90,"bloodChance":"0%","stamina":"0%","radiation":0},
+	{"name":"Батарейка 2 грейд","tier":"Грейдовые","health":0,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-0.30%","stamina":"0.20%","radiation":0},
+	{"name":"Батарейка 3 грейд","tier":"Грейдовые","health":0,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"-0.50%","stamina":"0.25%","radiation":0},
+	{"name":"Пламя 2 грейд","tier":"Грейдовые","health":-1,"food":0,"water":0,"shock":0,"blood":20,"bloodChance":"0.30%","stamina":"0%","radiation":0},
+	{"name":"Пламя 3 грейд","tier":"Грейдовые","health":-2,"food":0,"water":0,"shock":0,"blood":40,"bloodChance":"0.60%","stamina":"0%","radiation":0},
+	{"name":"Кристалл 2 грейд","tier":"Грейдовые","health":-0.5,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"0.60%","stamina":"0%","radiation":0},
+	{"name":"Кристалл 3 грейд","tier":"Грейдовые","health":-1,"food":0,"water":0,"shock":0,"blood":0,"bloodChance":"0.80%","stamina":"0%","radiation":0}
+];
+
+/*********************** Константы и вспомогательные функции ***********************/
+const LABELS = {health:'Здоровье',food:'Еда',water:'Вода',shock:'Шок',blood:'Кровь',bloodChance:'Шанс заживления кровотечения',stamina:'Стамина',radiation:'Радиация'};
+const ORDER  = ['health','food','water','shock','blood','bloodChance','stamina','radiation'];
+const POS_GREEN = ['health','food','water','shock','blood','bloodChance','stamina'];
+const NEG_RED  = ['health','food','water','shock','blood','bloodChance','stamina'];
+const percentAttrs = new Set();
+function toNumber(attr,val){ if(typeof val==='string' && val.trim().endsWith('%')){ percentAttrs.add(attr); return parseFloat(val)||0;} return Number(val)||0; }
+function format(attr,val){ const r=Math.round(val*1000)/1000; return percentAttrs.has(attr)?r+'%':r; }
+function valueClass(attr,val){ if(attr==='radiation' && val>0) return 'char-bad'; if(POS_GREEN.includes(attr) && val>0) return 'char-good'; if(NEG_RED.includes(attr) && val<0) return 'char-bad'; if(attr == 'radiation' && val<0) return 'char-good'; return ''; }
+
+/*********************** DOM элементы ***********************/
+const tierButtonsContainer = document.getElementById('tier-buttons');
+const tierTableBody       = document.querySelector('#tier-table tbody');
+const tbSel               = document.querySelector('#selected-table tbody');
+const tbTot               = document.querySelector('#totals-table tbody');
+
+/*********************** Tier интерфейс ***********************/
+let tiers = [];
+let currentTier = null;
+
+function rebuildTiers(){
+  tierButtonsContainer.innerHTML='';
+  tiers = [...new Set(artifacts.map(a=>a.tier))].sort((a,b)=>a-b);
+  tiers.forEach(tier=>{
+    const btn=document.createElement('button');
+    btn.textContent='Tier '+tier;
+    btn.className='tier-btn';
+    btn.onclick=()=>showTier(tier,btn);
+    tierButtonsContainer.appendChild(btn);
+  });
+  if(tiers.length>0){
+    showTier(tiers[0], tierButtonsContainer.querySelector('.tier-btn'));
+  }else{
+    tierTableBody.innerHTML='';
+  }
+}
+
+function showTier(tier,btn){
+  currentTier = tier;
+  document.querySelectorAll('.tier-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  tierTableBody.innerHTML='';
+  artifacts.filter(a=>a.tier===tier).sort((a,b)=>a.name.localeCompare(b.name,'ru'))
+    .forEach(art=>{
+      const tr=tierTableBody.insertRow();
+      tr.insertCell().textContent = art.name;
+      tr.insertCell().innerHTML   = buildCharString(art);
+      tr.onclick = ()=>addArtifact(art);
+    });
+}
+
+function buildCharString(art){
+  const parts=[];
+  ORDER.forEach(attr=>{
+    const raw=art[attr];
+    if(raw==null || toNumber(attr,raw)===0) return;
+    const val=toNumber(attr,raw);
+    parts.push(`<span class="${valueClass(attr,val)}">${LABELS[attr]}: ${format(attr,val)}</span>`);
+  });
+  return parts.join(' | ');
+}
+
+/*********************** Логика выбора и итогов ***********************/
+const selected=[];
+function addArtifact(art){
+  const idx=artifacts.indexOf(art);
+  const f=selected.find(e=>e.idx===idx);
+  f?f.count++:selected.push({idx,count:1});
+  renderSel();
+  renderTot();
+}
+function upd(idx,v){ if(v<1) return; const e=selected.find(e=>e.idx===idx); if(e){ e.count=v; renderTot(); } }
+function del(idx){ const i=selected.findIndex(e=>e.idx===idx); if(i>-1){ selected.splice(i,1); renderSel(); renderTot(); } }
+
+function renderSel(){
+  tbSel.innerHTML='';
+  selected.forEach(({idx,count})=>{
+    const art=artifacts[idx];
+    const tr=tbSel.insertRow();
+    tr.className='artifact-row';
+    tr.insertCell().textContent = art.name;
+    const q=tr.insertCell();
+    const inp=document.createElement('input');
+    inp.type='number'; inp.min='1'; inp.value=count; inp.className='qty';
+    inp.oninput=()=>upd(idx, +inp.value||1);
+    q.appendChild(inp);
+    const act=tr.insertCell();
+    const rm=document.createElement('span'); rm.textContent='Удалить'; rm.className='remove-btn'; rm.onclick=()=>del(idx); act.appendChild(rm);
+  });
+}
+
+function renderTot(){
+  const tot={}; ORDER.forEach(k=>tot[k]=0);
+  selected.forEach(({idx,count})=>{
+    const art=artifacts[idx]; ORDER.forEach(k=>tot[k]+=toNumber(k,art[k]??0)*count);
+  });
+  tbTot.innerHTML='';
+  ORDER.forEach(k=>{
+    const tr=tbTot.insertRow(); tr.insertCell().textContent=LABELS[k];
+    const v=tr.insertCell(); v.textContent=format(k,tot[k]); const c=valueClass(k,tot[k]); if(c) v.className=c.replace('char-','');
+  });
+}
+
+/*********************** Поиск ***********************/
+function doSearch(){
+  const inp=document.getElementById('search-input');
+  const q=inp.value.trim().toLowerCase(); if(!q) return;
+  const art=artifacts.find(a=>a.name.toLowerCase()===q);
+  if(art){
+    addArtifact(art);
+    const btn=[...tierButtonsContainer.children].find(b=>b.textContent.endsWith(art.tier));
+    if(btn) showTier(art.tier,btn);
+  }else{
+    alert('Артефакт не найден');
+  }
+  inp.value='';
+}
+
+/* События поиска */
+document.getElementById('search-btn').onclick=doSearch;
+document.getElementById('search-input').addEventListener('keydown',e=>{ if(e.key==='Enter') doSearch(); });
+
+/*********************** Инициализация ***********************/
+rebuildTiers();
+</script>
+</body>
+</html>
